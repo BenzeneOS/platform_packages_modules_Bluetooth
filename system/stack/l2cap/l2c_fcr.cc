@@ -1602,16 +1602,15 @@ uint8_t l2c_fcr_chk_chan_modes(tL2C_CCB* p_ccb) {
   /* Remove nonbasic options that the peer does not support */
   if (!(p_ccb->p_lcb->peer_ext_fea & L2CAP_EXTFEA_ENH_RETRANS) &&
       p_ccb->p_rcb->ertm_info.preferred_mode == L2CAP_FCR_ERTM_MODE) {
-    log::warn("L2CAP - Peer does not support our desired channel types");
-    p_ccb->p_rcb->ertm_info.preferred_mode = 0;
-    // TODO: This interop fix is temporary. Need to remove If there is a better
-    // way to handle this
-    if (l2c_should_skip_ertm(p_ccb->p_lcb->remote_bd_addr)) {
-      log::info("candidate device for skip ertm");
-      return true;
-    } else {
-      return false;
-    }
+    /*
+     * Peer doesn't support ERTM but we requested it. Fall back to basic mode
+     * instead of failing. Basic mode is always supported and this fixes
+     * compatibility with devices like AirPods that don't advertise ERTM
+     * support but can still communicate via basic L2CAP.
+     * See: https://issuetracker.google.com/issues/371713238
+     */
+    log::warn("L2CAP - Peer does not support ERTM, falling back to basic mode");
+    p_ccb->p_rcb->ertm_info.preferred_mode = L2CAP_FCR_BASIC_MODE;
   }
   return true;
 }
