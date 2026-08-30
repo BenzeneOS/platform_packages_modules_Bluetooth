@@ -97,7 +97,15 @@ struct MsftExtensionManager::impl {
 
   void handle_msft_events(VendorSpecificEventView view) {
     auto payload = view.GetPayload();
-    for (size_t i = 0; i < msft_.prefix.size() - 1; i++) {
+    // The first prefix octet is the subevent code the handler was registered under, so it is
+    // not part of the payload; the remainder has to be present to be compared against.
+    size_t prefix_len = msft_.prefix.size() - 1;
+    if (payload.size() < prefix_len) {
+      log::warn("The Microsoft vendor event is shorter than the vendor prefix.");
+      return;
+    }
+
+    for (size_t i = 0; i < prefix_len; i++) {
       if (msft_.prefix[i + 1] != payload[i]) {
         log::warn("The Microsoft vendor event prefix does not match.");
         return;
@@ -105,7 +113,7 @@ struct MsftExtensionManager::impl {
     }
 
     auto msft_view = MsftEventPayloadView::Create(
-            payload.GetLittleEndianSubview(msft_.prefix.size() - 1, payload.size()));
+            payload.GetLittleEndianSubview(prefix_len, payload.size()));
     log::assert_that(msft_view.IsValid(), "assert failed: msft_view.IsValid()");
 
     MsftEventCode ev_code = msft_view.GetMsftEventCode();
@@ -273,11 +281,13 @@ struct MsftExtensionManager::impl {
 
     // Save the vendor prefix to distinguish upcoming MSFT vendor events.
     auto prefix = status_view.GetPrefix();
-    msft_.prefix.assign(prefix.begin(), prefix.end());
-
-    if (prefix.size() > kMsftEventPrefixLengthMax) {
-      log::warn("The MSFT prefix length {} is too large", (unsigned int)prefix.size());
+    if (prefix.empty() || prefix.size() > kMsftEventPrefixLengthMax) {
+      log::error("The MSFT prefix length {} is unusable", (unsigned int)prefix.size());
+      msft_.opcode = std::nullopt;
+      return;
     }
+
+    msft_.prefix.assign(prefix.begin(), prefix.end());
 
     log::info("MSFT features 0x{:016x} prefix length {}", msft_.features, prefix.size());
 
