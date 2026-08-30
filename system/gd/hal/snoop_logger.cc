@@ -1134,6 +1134,10 @@ void SnoopLogger::FilterCapturedPacket(HciPacket& packet, Direction direction, P
         // Add additional bytes for magic string in case
         // payload length is less than the length of magic string.
         packet.resize((size_t)(packet.size() + EXTRA_BUF_SIZE));
+      } else {
+        // No headroom can be added, so the magic string would not fit.
+        length = 0;
+        return;
       }
 
       length = FilterProfiles(direction == Direction::INCOMING, (uint8_t*)packet.data());
