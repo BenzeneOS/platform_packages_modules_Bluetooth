@@ -3336,6 +3336,14 @@ void btm_sec_encrypt_change(uint16_t handle, tHCI_STATUS status, uint8_t encr_en
     // Determine encryption_algo as per BT spec section `Encryption Change event`.
     EncryptionAlgorithm encryption_algo = EncryptionAlgorithm::NONE;
     if (encr_enable == HCI_ENCRYPT_MODE_ON) {
+      if (transport == BT_TRANSPORT_BR_EDR &&
+          btm_sec_is_enc_algo_downgrade(handle, false, false)) {
+        acl_set_disconnect_reason(HCI_ERR_HOST_REJECT_SECURITY);
+        btm_sec_send_hci_disconnect(p_device, HCI_ERR_AUTH_FAILURE, handle,
+                                    "attempted to downgrade from Secure Connections mode");
+        return;
+      }
+
       encryption_algo =
               (transport == BT_TRANSPORT_LE) ? EncryptionAlgorithm::AES : EncryptionAlgorithm::E0;
 
